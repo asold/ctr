@@ -6,45 +6,42 @@ from .utils import generate_random_bytes, aes_encrypt_block, xor_bytes
 _USED_NONCES = set()
 
 def keygen() -> bytes:
-    """Generate a random AES-128 key (16 bytes)."""
     return generate_random_bytes(16)
 
 def generate_nonce() -> bytes:
-    """Generate a random 16-byte nonce, ensuring uniqueness."""
     while True:
-        nonce = generate_random_bytes(16)
+        nonce = generate_random_bytes(16) ## random 16 bytes. 
         if nonce not in _USED_NONCES:
             _USED_NONCES.add(nonce)
             return nonce
 
 def _counter_block(nonce: bytes, counter: int) -> bytes:
-    """Construct a counter block: nonce[0:8] || counter (64-bit big-endian)."""
     assert len(nonce) == 16
     prefix = nonce[:8]   # use first 8 bytes of nonce
-    ctr_bytes = struct.pack(">Q", counter)  # 64-bit counter
+    ctr_bytes = struct.pack(">Q", counter)  # converts the counter int into 8 bytes
+    ## >Q means big endian unsigned long long
     return prefix + ctr_bytes
 
 def encrypt(key: bytes, plaintext: bytes) -> Tuple[bytes, bytes]:
-    """Encrypt plaintext using AES-128 in CTR mode.
-    Returns (nonce, ciphertext)."""
     nonce = generate_nonce()
     ciphertext = b""
-    blocks = [plaintext[i:i+16] for i in range(0, len(plaintext), 16)]
+    blocks = [plaintext[i:i+16] for i in range(0, len(plaintext), 16)] ## splits plaintext into 16 byte blocks.
 
     for counter, block in enumerate(blocks):
-        keystream = aes_encrypt_block(key, _counter_block(nonce, counter))
-        ciphertext += xor_bytes(block, keystream[:len(block)])
+        keystream = aes_encrypt_block(key, _counter_block(nonce, counter))## uses the key to encrypt the counter block.
+        ## outputs 16 bytes keystream block
+        ciphertext += xor_bytes(block, keystream[:len(block)]) ## if block is shorter than 16 bytes, then we take the first x bytes from the key
 
     return nonce, ciphertext
 
 def decrypt(key: bytes, nonce: bytes, ciphertext: bytes) -> bytes:
-    """Decrypt ciphertext using AES-128 in CTR mode."""
     plaintext = b""
-    blocks = [ciphertext[i:i+16] for i in range(0, len(ciphertext), 16)]
+    blocks = [ciphertext[i:i+16] for i in range(0, len(ciphertext), 16)] ## split the cipher into block os 16 bytes
 
     for counter, block in enumerate(blocks):
-        keystream = aes_encrypt_block(key, _counter_block(nonce, counter))
-        plaintext += xor_bytes(block, keystream[:len(block)])
+        keystream = aes_encrypt_block(key, _counter_block(nonce, counter))## creates the same sequence of aes inputs
+        ## gives the same keystream as during encryption
+        plaintext += xor_bytes(block, keystream[:len(block)])## xoring the encrypted blocks with the keystream produces cyphertext blocks
 
     return plaintext
 
